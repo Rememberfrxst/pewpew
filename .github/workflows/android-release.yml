@@ -34,7 +34,17 @@ jobs:
           base=https://github.com/godotengine/godot-builds/releases/download/4.6.3-stable
           curl -fLsS --retry 3 "$base/SHA512-SUMS.txt" -o SHA512-SUMS.txt
           curl -fLsS --retry 3 "$base/Godot_v4.6.3-stable_linux.x86_64.zip" -o Godot_v4.6.3-stable_linux.x86_64.zip
-          rg '  Godot_v4.6.3-stable_linux.x86_64.zip$' SHA512-SUMS.txt | sha512sum -c -
+          python3 - <<'PY'
+          import hashlib
+          from pathlib import Path
+          name = 'Godot_v4.6.3-stable_linux.x86_64.zip'
+          sums = Path('SHA512-SUMS.txt').read_text().splitlines()
+          expected = next(line.split()[0] for line in sums if line.endswith(name))
+          with open(name, 'rb') as archive:
+              actual = hashlib.file_digest(archive, 'sha512').hexdigest()
+          assert actual == expected, 'Official engine checksum mismatch'
+          print('Official engine SHA512 verified')
+          PY
           unzip -q Godot_v4.6.3-stable_linux.x86_64.zip
           chmod +x "$GODOT_BIN"
       - name: Prepare Android exporter
