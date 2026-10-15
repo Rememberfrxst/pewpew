@@ -10,7 +10,7 @@ import subprocess
 import urllib.request
 import zipfile
 
-ROOT = Path('/workspace/tooling')
+ROOT = Path(os.environ.get('PEWPEW_TOOLING_ROOT', '/workspace/tooling'))
 VERSION = '4.6.3'
 
 

@@ -1,0 +1,73 @@
+name: Android APK release
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [.github/workflows/android-release.yml]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-v0.1.0-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      PEWPEW_TOOLING_ROOT: ${{ runner.temp }}/pewpew-tools
+      ANDROID_HOME: ${{ runner.temp }}/pewpew-tools/android-sdk
+      GODOT_BIN: ${{ runner.temp }}/pewpew-tools/engine/Godot_v4.6.3-stable_linux.x86_64
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install verified Godot engine
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$PEWPEW_TOOLING_ROOT/engine"
+          cd "$PEWPEW_TOOLING_ROOT/engine"
+          base=https://github.com/godotengine/godot-builds/releases/download/4.6.3-stable
+          curl -fLsS --retry 3 "$base/SHA512-SUMS.txt" -o SHA512-SUMS.txt
+          curl -fLsS --retry 3 "$base/Godot_v4.6.3-stable_linux.x86_64.zip" -o Godot_v4.6.3-stable_linux.x86_64.zip
+          rg '  Godot_v4.6.3-stable_linux.x86_64.zip$' SHA512-SUMS.txt | sha512sum -c -
+          unzip -q Godot_v4.6.3-stable_linux.x86_64.zip
+          chmod +x "$GODOT_BIN"
+      - name: Prepare Android exporter
+        run: python3 tools/setup_cloud.py
+      - name: Import and test gameplay
+        run: |
+          bash tools/godot.sh --headless --editor --import --quit
+          bash tools/godot.sh --headless -- --smoke-test
+      - name: Export and verify APK
+        run: bash tools/export_android.sh
+      - name: Retain build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: neon-outpost-android
+          path: |
+            build/pewpew-debug.apk
+            build/pewpew-debug.apk.sha256
+          if-no-files-found: error
+      - name: Publish Android prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view v0.1.0 >/dev/null 2>&1; then
+            echo 'Release v0.1.0 already exists; leaving its assets unchanged.'
+            exit 0
+          fi
+          cat > "$RUNNER_TEMP/release-notes.md" <<'NOTES'
+          Download pewpew-debug.apk from Assets on your Android phone, install it, open Neon Outpost, and tap Deploy.
+
+          Offline training prototype: touch movement/aim/fire, rifle, reload, bot waves, health, pause, and Smooth/High graphics.
+
+          Requires Android 7.0+, ARM64 or ARMv7, and OpenGL ES 3.0. Development-signed prerelease. Phone installation, sustained FPS and thermals are not yet verified. This is not a production multiplayer game.
+
+          Gameplay tests and APK signature verification run during this build. The SHA256 file verifies your download.
+          NOTES
+          gh release create v0.1.0 build/pewpew-debug.apk build/pewpew-debug.apk.sha256 --verify-tag --prerelease --title 'Neon Outpost 0.1.0 — Android prototype' --notes-file "$RUNNER_TEMP/release-notes.md"
