@@ -17,12 +17,14 @@ jobs:
   release:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
-    env:
-      PEWPEW_TOOLING_ROOT: ${{ runner.temp }}/pewpew-tools
-      ANDROID_HOME: ${{ runner.temp }}/pewpew-tools/android-sdk
-      GODOT_BIN: ${{ runner.temp }}/pewpew-tools/engine/Godot_v4.6.3-stable_linux.x86_64
     steps:
       - uses: actions/checkout@v4
+      - name: Set writable build paths
+        shell: bash
+        run: |
+          echo "PEWPEW_TOOLING_ROOT=$RUNNER_TEMP/pewpew-tools" >> "$GITHUB_ENV"
+          echo "ANDROID_HOME=$RUNNER_TEMP/pewpew-tools/android-sdk" >> "$GITHUB_ENV"
+          echo "GODOT_BIN=$RUNNER_TEMP/pewpew-tools/engine/Godot_v4.6.3-stable_linux.x86_64" >> "$GITHUB_ENV"
       - name: Install verified Godot engine
         shell: bash
         run: |
